@@ -89,17 +89,26 @@ func (g *Game) Update() error {
 				//validate the number
 				if g.isNumValid(g.cursorY, g.cursorX, num) {
 					g.logic.Puzzle[g.cursorY][g.cursorX] = num
+					g.logic.MoveStack = append(g.logic.MoveStack, logic.Action{
+						Row:      g.cursorY,
+						Col:      g.cursorX,
+						OldValue: 0,
+						NewValue: num,
+					})
+
 				} else {
 					log.Println("Invalid number try again")
 				}
+
 			}
+
 		}
 	}
-
 	//handle undo input via z or backspace
 	if inpututil.IsKeyJustPressed(ebiten.KeyZ) || inpututil.IsKeyJustPressed(ebiten.KeyBackspace) {
 		g.logic.UndoMove()
 	}
+
 	return nil
 }
 
@@ -220,7 +229,7 @@ func main() {
 	//logic.ShuffleAsh(&randomPuzzle)
 
 	//remove some numbers from the puzzle
-	logic.RemoveNumbersFromGrid(&randomPuzzle, 1)
+	logic.RemoveNumbersFromGrid(&randomPuzzle, 3)
 
 	gamelogic := &logic.GameLogic{
 		Puzzle:    randomPuzzle,

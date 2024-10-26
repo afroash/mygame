@@ -3,6 +3,7 @@ package main
 import (
 	"testing"
 
+	"github.com/afroash/ashlog"
 	"github.com/afroash/mygame/logic"
 )
 
@@ -14,18 +15,18 @@ func TestIsNumberValidRow(t *testing.T) {
 	//Load puzzle from samples.
 	puzzles, err := logic.LoadPuzzles("sample.txt")
 	if err != nil {
-		t.Errorf("Error loading puzzles: %v", err)
+		ashlog.LogFatal("Error loading puzzles", err)
 	}
 
 	//Select a random puzzle
 	randomPuzzle := logic.GetRandomPuzzle(puzzles)
 
 	//shuffle the puzzle
-	logic.ShuffleAsh(&randomPuzzle)
+	//logic.ShuffleAsh(&randomPuzzle)
 
 	//remove some numbers from the puzzle
 	logic.RemoveNumbersFromGrid(&randomPuzzle, 1)
-	g.puzzle = randomPuzzle
+	g.logic.Puzzle = randomPuzzle
 	if g.isNumValid(0, 5, 6) != false {
 		t.Errorf("Expected false, got true. Number 6 is already present in the row")
 	}
@@ -50,7 +51,7 @@ func TestIsNumberValidColumn(t *testing.T) {
 
 	//remove some numbers from the puzzle
 	logic.RemoveNumbersFromGrid(&randomPuzzle, 1)
-	g.puzzle = randomPuzzle
+	g.logic.Puzzle = randomPuzzle
 	if g.isNumValid(5, 5, 5) != false {
 		t.Errorf("Expected false, got true. Number 5 is already present in the column")
 	}
@@ -75,7 +76,7 @@ func TestIsNumberValidSubgrid(t *testing.T) {
 
 	//remove some numbers from the puzzle
 	logic.RemoveNumbersFromGrid(&randomPuzzle, 1)
-	g.puzzle = randomPuzzle
+	g.logic.Puzzle = randomPuzzle
 	if g.isNumValid(1, 3, 4) != false {
 		t.Errorf("Expected false, got true. Number 9 is already present in the subgrid")
 	}

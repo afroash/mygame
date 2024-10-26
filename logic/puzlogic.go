@@ -150,6 +150,7 @@ func (g *GameLogic) AddMove(row, col, oldValue, newValue int) {
 // Undo the last move
 func (g *GameLogic) UndoMove() {
 	if len(g.MoveStack) == 0 {
+		fmt.Println("No moves to undo")
 		return
 	}
 	lastMove := g.MoveStack[len(g.MoveStack)-1]
