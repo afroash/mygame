@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"image/color"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -40,8 +41,10 @@ func (d *DrawHandler) Draw(screen *ebiten.Image) {
 	case DifficultyMenu:
 		d.drawDifficultyMenu(screen)
 	case Playing:
-		d.DrawGrid(screen)
-		d.DrawNumbers(screen)
+		if d.game.logic != nil {
+			d.DrawGrid(screen)
+			d.DrawNumbers(screen)
+		}
 	}
 }
 
@@ -77,11 +80,17 @@ func (d *DrawHandler) DrawGrid(screen *ebiten.Image) {
 
 // DrawNumbers draws the numbers on the grid
 func (d *DrawHandler) DrawNumbers(screen *ebiten.Image) {
+	if d.game == nil || d.game.logic == nil {
+		fmt.Println("Game or logic is nil")
+		return
+	}
 	for row := 0; row < d.gridSize; row++ {
 		for col := 0; col < d.gridSize; col++ {
 			if d.game.logic.Puzzle[row][col] != 0 {
-				x := col*d.cellSize + d.cellSize/3
-				y := row*d.cellSize + 2*d.cellSize/3
+
+				//Center the number in the cell
+				x := col*d.cellSize + d.cellSize/2
+				y := row*d.cellSize + d.cellSize/2
 
 				op := &text.DrawOptions{}
 				op.GeoM.Translate(float64(x), float64(y))
@@ -100,61 +109,134 @@ func (d *DrawHandler) DrawNumbers(screen *ebiten.Image) {
 }
 
 // drawMainMenu draws the main menu
+
 func (d *DrawHandler) drawMainMenu(screen *ebiten.Image) {
+	// Center the menu on screen
+	startX := screenWidth / 2
+	startY := screenHeight / 3
+	lineSpacing := 50 // Increased spacing between options
 	options := []string{"New Game", "Difficulty", "Exit"}
-	startX := 100
-	startY := 150
-	lineSpacing := 30
+
+	// Draw title
+	titleOp := &text.DrawOptions{}
+	titleOp.GeoM.Translate(float64(startX), float64(startY-85))
+	titleOp.ColorScale.ScaleWithColor(color.Black)
+	titleOp.PrimaryAlign = text.AlignCenter
+	text.Draw(screen, "Sudoku by Ash", &text.GoTextFace{
+		Source: d.fontSource,
+		Size:   menuFontSize + 8,
+	}, titleOp)
 
 	for i, option := range options {
+		yPos := startY + i*lineSpacing
+
+		// Calculate text metrics for centering
+		textWidth := len(option) * diffFontSize / 2 // Approximate width
+		rectWidth := float32(textWidth + 40)        // Add padding
+		rectHeight := float32(40)                   // Fixed height for selection rectangle
+
+		// Draw selection highlight if this option is selected
 		if i == d.game.selected {
 			vector.DrawFilledRect(
 				screen,
-				float32(startX-10),
-				float32(startY+i*lineSpacing-10),
-				float32(200),
-				float32(30),
+				float32(startX)-rectWidth/2, // Center the rectangle
+				float32(yPos)-rectHeight/2,  // Center vertically around text
+				rectWidth,
+				rectHeight,
+				color.RGBA{0, 0, 255, 100}, // Lighter blue for better visibility
+				false,
+			)
+
+			// Draw border for selected option
+			vector.StrokeRect(
+				screen,
+				float32(startX)-rectWidth/2,
+				float32(yPos)-rectHeight/2,
+				rectWidth,
+				rectHeight,
+				2,
 				color.RGBA{0, 0, 255, 255},
-				false)
+				false,
+			)
 		}
 
+		// Draw the menu option text
 		op := &text.DrawOptions{}
-		op.GeoM.Translate(float64(startX), float64(startY+(i*lineSpacing)))
+		op.GeoM.Translate(float64(startX), float64(yPos))
 		op.ColorScale.ScaleWithColor(color.Black)
+		op.PrimaryAlign = text.AlignCenter
+		op.SecondaryAlign = text.AlignCenter
 
 		text.Draw(screen, option, &text.GoTextFace{
 			Source: d.fontSource,
 			Size:   menuFontSize,
 		}, op)
 	}
+
+	// Draw instructions at the bottom
+	instructOp := &text.DrawOptions{}
+	instructOp.GeoM.Translate(float64(startX), float64(startY+lineSpacing*4))
+	instructOp.ColorScale.ScaleWithColor(color.RGBA{100, 100, 100, 255})
+	instructOp.PrimaryAlign = text.AlignCenter
+	text.Draw(screen, "Use ↑↓ to select, ENTER to confirm", &text.GoTextFace{
+		Source: d.fontSource,
+		Size:   normalFontSize,
+	}, instructOp)
 }
 
-// drawDifficultyMenu draws the difficulty menu
+// drawDifficultyMenu method in drawing.go
 func (d *DrawHandler) drawDifficultyMenu(screen *ebiten.Image) {
-	startX := 100
-	startY := 150
-	lineSpacing := 10
-	diffs := []string{"Easy", "medium", "Harder"}
+	// Center the menu on screen
+	startX := screenWidth / 2
+	startY := screenHeight / 3
+	lineSpacing := 50 // Increased spacing between options
+	diffs := []string{"Easy", "Medium", "Hard"}
+
+	// Draw title
+	titleOp := &text.DrawOptions{}
+	titleOp.GeoM.Translate(float64(startX), float64(startY-85))
+	titleOp.ColorScale.ScaleWithColor(color.Black)
+	titleOp.PrimaryAlign = text.AlignCenter
+	text.Draw(screen, "Select Difficulty", &text.GoTextFace{
+		Source: d.fontSource,
+		Size:   menuFontSize + 4,
+	}, titleOp)
 
 	for i, diff := range diffs {
+		yPos := startY + i*lineSpacing
+
+		// Draw selection highlight
 		if i == d.game.selected {
 			vector.DrawFilledRect(
 				screen,
-				float32(startX-10),
-				float32(startY+i*lineSpacing-10),
-				float32(200),
-				float32(30),
+				float32(startX-100),
+				float32(yPos-20),
+				200,
+				40,
 				color.RGBA{0, 0, 255, 255},
 				false)
 		}
 
+		// Draw text
 		op := &text.DrawOptions{}
-		op.GeoM.Translate(float64(startX), float64(startY+(i*lineSpacing)))
+		op.GeoM.Translate(float64(startX), float64(yPos))
 		op.ColorScale.ScaleWithColor(color.Black)
+		op.PrimaryAlign = text.AlignCenter
+		op.SecondaryAlign = text.AlignCenter
 
 		text.Draw(screen, diff, &text.GoTextFace{
 			Source: d.fontSource,
 			Size:   diffFontSize,
 		}, op)
 	}
+
+	// Draw instruction
+	instructOp := &text.DrawOptions{}
+	instructOp.GeoM.Translate(float64(startX), float64(startY+lineSpacing*4))
+	instructOp.ColorScale.ScaleWithColor(color.RGBA{100, 100, 100, 255})
+	instructOp.PrimaryAlign = text.AlignCenter
+	text.Draw(screen, "Press ESC to return to main menu", &text.GoTextFace{
+		Source: d.fontSource,
+		Size:   normalFontSize,
+	}, instructOp)
 }
