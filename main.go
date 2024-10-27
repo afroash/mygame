@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"image/color"
 	"log"
 	"os"
 
@@ -43,17 +44,27 @@ const (
 	Hard
 )
 
+type StatusMessage struct {
+	text      string
+	color     color.RGBA
+	timer     int
+	isVisible bool
+}
+
 // Game struct
 type Game struct {
-	cursorX    int // X position of the game box
-	cursorY    int // Y position of the game box
-	Puzzle     *logic.GameLogic
-	logic      *logic.GameLogic
-	state      GameState
-	difficulty DifficultyLevel
-	selected   int
-	drawer     *DrawHandler
-	shoudlExit bool
+	cursorX        int // X position of the game box
+	cursorY        int // Y position of the game box
+	Puzzle         *logic.GameLogic
+	logic          *logic.GameLogic
+	state          GameState
+	difficulty     DifficultyLevel
+	selected       int
+	drawer         *DrawHandler
+	shoudlExit     bool
+	showWinMessage bool
+	messageTimer   int
+	statusMessage  StatusMessage
 }
 
 func NewGame() *Game {
@@ -68,12 +79,34 @@ func NewGame() *Game {
 		cursorY:    gridSize / 2,
 		state:      MainMenu,
 		shoudlExit: false,
+		statusMessage: StatusMessage{
+			timer:     0,
+			isVisible: false,
+		},
 	}
 
 	// Initialize the drawer
 	game.drawer = NewDrawHandler(game, s)
 
 	return game
+}
+
+func (g *Game) showStatus(text string, color color.RGBA) {
+	g.statusMessage = StatusMessage{
+		text:      text,
+		color:     color,
+		timer:     120,
+		isVisible: true,
+	}
+}
+
+func (g *Game) updateStatusMessage() {
+	if g.statusMessage.isVisible {
+		g.statusMessage.timer--
+		if g.statusMessage.timer <= 0 {
+			g.statusMessage.isVisible = false
+		}
+	}
 }
 
 func (g *Game) Update() error {
@@ -161,6 +194,14 @@ func (g *Game) handleDifficultyMenu() {
 
 // handlePlayingInput will handle the input when the game is in the Playing state
 func (g *Game) handlePlayingInput() {
+	//update the status message timer
+	g.updateStatusMessage()
+
+	// Handle  progress check [P] key
+	if inpututil.IsKeyJustPressed(ebiten.KeyP) {
+		g.CheckProgress()
+
+	}
 	// Move the cursor
 	if inpututil.IsKeyJustPressed(ebiten.KeyUp) || inpututil.IsKeyJustPressed(ebiten.KeyW) {
 		if g.cursorY > 0 {
@@ -200,6 +241,13 @@ func (g *Game) handlePlayingInput() {
 					// Number is invalid
 					fmt.Println("Invalid number")
 				}
+				// Check game status after each move
+				if g.logic.IsGridFull() {
+					if g.logic.IsGridValid() {
+						g.showWinMessage = true
+						g.messageTimer = 180
+					}
+				}
 			}
 		}
 	}
@@ -207,6 +255,68 @@ func (g *Game) handlePlayingInput() {
 	// Handle undo
 	if inpututil.IsKeyJustPressed(ebiten.KeyZ) || inpututil.IsKeyJustPressed(ebiten.KeyBackspace) {
 		g.logic.UndoMove()
+	}
+
+	// Handle win message timer
+	if g.showWinMessage {
+		g.messageTimer--
+		if g.messageTimer <= 0 {
+			g.showWinMessage = false
+		}
+	}
+
+	// Add a check progress button (Space key)
+	if inpututil.IsKeyJustPressed(ebiten.KeySpace) {
+		switch g.logic.GetGameStatus() {
+		case logic.InProgress:
+			// show a "Keep going!" message
+
+		case logic.Completed:
+			g.showWinMessage = true
+			g.messageTimer = 180
+		case logic.Invalid:
+			// Optionally show an "Something's not right" message
+		}
+	}
+}
+
+// CheckProgress will check the progress of the game
+func (g *Game) CheckProgress() {
+	if g.logic == nil {
+		return
+	}
+	emptyCount := 0
+	invalidCount := 0
+
+	// Count empty cells and check for invalid entries
+	for i := 0; i < gridSize; i++ {
+		for j := 0; j < gridSize; j++ {
+			if g.logic.Puzzle[i][j] == 0 {
+				emptyCount++
+			} else if !g.isNumValid(i, j, g.logic.Puzzle[i][j]) {
+				invalidCount++
+			}
+		}
+	}
+
+	// Prepare status message
+	if invalidCount > 0 {
+		g.showStatus(
+			fmt.Sprintf("Found %d incorrect numbers", invalidCount),
+			color.RGBA{255, 0, 0, 255}, // Red
+		)
+	} else if emptyCount > 0 {
+		g.showStatus(
+			fmt.Sprintf("%d cells left to fill", emptyCount),
+			color.RGBA{0, 128, 255, 255}, // Blue
+		)
+	} else if g.logic.IsGridValid() {
+		g.showStatus(
+			"Puzzle completed correctly!",
+			color.RGBA{0, 255, 0, 255}, // Green
+		)
+		g.showWinMessage = true
+		g.messageTimer = 180
 	}
 }
 

@@ -44,6 +44,8 @@ func (d *DrawHandler) Draw(screen *ebiten.Image) {
 		if d.game.logic != nil {
 			d.DrawGrid(screen)
 			d.DrawNumbers(screen)
+			d.drawStatusBar(screen)
+			d.drawGameMessages(screen)
 		}
 	}
 }
@@ -239,4 +241,92 @@ func (d *DrawHandler) drawDifficultyMenu(screen *ebiten.Image) {
 		Source: d.fontSource,
 		Size:   normalFontSize,
 	}, instructOp)
+}
+
+func (d *DrawHandler) drawGameMessages(screen *ebiten.Image) {
+	if !d.game.showWinMessage {
+		return
+	}
+
+	// Draw semi-transparent overlay
+	vector.DrawFilledRect(
+		screen,
+		0,
+		0,
+		float32(d.screenWidth),
+		float32(d.screenHeight),
+		color.RGBA{0, 0, 0, 180},
+		false,
+	)
+
+	// Draw win message
+	message := "Congratulations! Puzzle Solved!"
+	op := &text.DrawOptions{}
+	op.GeoM.Translate(float64(d.screenWidth/2), float64(d.screenHeight/2))
+	op.ColorScale.ScaleWithColor(color.RGBA{255, 255, 255, 255})
+	op.PrimaryAlign = text.AlignCenter
+	op.SecondaryAlign = text.AlignCenter
+
+	text.Draw(screen, message, &text.GoTextFace{
+		Source: d.fontSource,
+		Size:   menuFontSize,
+	}, op)
+
+	// Draw sub-message
+	subMessage := "Press ESC for menu, ENTER for new game"
+	subOp := &text.DrawOptions{}
+	subOp.GeoM.Translate(float64(d.screenWidth/2), float64(d.screenHeight/2)+40)
+	subOp.ColorScale.ScaleWithColor(color.RGBA{255, 255, 255, 200})
+	subOp.PrimaryAlign = text.AlignCenter
+	subOp.SecondaryAlign = text.AlignCenter
+
+	text.Draw(screen, subMessage, &text.GoTextFace{
+		Source: d.fontSource,
+		Size:   normalFontSize,
+	}, subOp)
+}
+
+func (d *DrawHandler) drawStatusBar(screen *ebiten.Image) {
+	if d.game.state != Playing {
+		return
+	}
+
+	// Draw help text for progress check
+	helpText := "Press P to check progress"
+	helpOp := &text.DrawOptions{}
+	helpOp.GeoM.Translate(float64(10), float64(d.screenHeight-20))
+	helpOp.ColorScale.ScaleWithColor(color.RGBA{100, 100, 100, 255})
+
+	text.Draw(screen, helpText, &text.GoTextFace{
+		Source: d.fontSource,
+		Size:   normalFontSize,
+	}, helpOp)
+
+	// Draw status message if visible
+	if d.game.statusMessage.isVisible {
+		msg := d.game.statusMessage
+
+		// Draw background for status message
+		vector.DrawFilledRect(
+			screen,
+			0,
+			float32(d.screenHeight-50),
+			float32(d.screenWidth),
+			40,
+			color.RGBA{0, 0, 0, 180},
+			false,
+		)
+
+		// Draw status message
+		op := &text.DrawOptions{}
+		op.GeoM.Translate(float64(d.screenWidth/2), float64(d.screenHeight-30))
+		op.ColorScale.ScaleWithColor(msg.color)
+		op.PrimaryAlign = text.AlignCenter
+		op.SecondaryAlign = text.AlignCenter
+
+		text.Draw(screen, msg.text, &text.GoTextFace{
+			Source: d.fontSource,
+			Size:   normalFontSize + 2,
+		}, op)
+	}
 }

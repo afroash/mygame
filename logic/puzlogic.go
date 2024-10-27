@@ -21,6 +21,15 @@ type GameLogic struct {
 	MoveStack []Action
 }
 
+// GameStatus represents the current state of the game
+type GameStatus int
+
+const (
+	InProgress GameStatus = iota
+	Completed
+	Invalid
+)
+
 // Function to load puzzles from the text file
 func LoadPuzzles(filename string) ([]Puzzle, error) {
 	file, err := os.Open(filename)
@@ -156,4 +165,81 @@ func (g *GameLogic) UndoMove() {
 	lastMove := g.MoveStack[len(g.MoveStack)-1]
 	g.MoveStack = g.MoveStack[:len(g.MoveStack)-1]
 	g.Puzzle[lastMove.Row][lastMove.Col] = lastMove.OldValue
+}
+
+// IsGridFull checks if the grid is full
+func (g *GameLogic) IsGridFull() bool {
+	for i := 0; i < 9; i++ {
+		for j := 0; j < 9; j++ {
+			if g.Puzzle[i][j] == 0 {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// IsGridValid checks if the grid is valid
+func (g *GameLogic) IsGridValid() bool {
+	// Check rows
+	for row := 0; row < 9; row++ {
+		if !isValidSet(g.Puzzle[row][:]) {
+			return false
+		}
+	}
+
+	// Check columns
+	for col := 0; col < 9; col++ {
+		var column [9]int
+		for row := 0; row < 9; row++ {
+			column[row] = g.Puzzle[row][col]
+		}
+		if !isValidSet(column[:]) {
+			return false
+		}
+	}
+
+	// Check subgrids
+	for blockRow := 0; blockRow < 9; blockRow += 3 {
+		for blockCol := 0; blockCol < 9; blockCol += 3 {
+			var blockVals [9]int
+			idx := 0
+			for i := 0; i < 3; i++ {
+				for j := 0; j < 3; j++ {
+					blockVals[idx] = g.Puzzle[blockRow+i][blockCol+j]
+					idx++
+				}
+			}
+			if !isValidSet(blockVals[:]) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// isValidSet checks if the set of numbers is valid
+func isValidSet(set []int) bool {
+	seen := make(map[int]bool)
+	for _, num := range set {
+		if num == 0 {
+			return false
+		}
+		if seen[num] {
+			return false
+		}
+		seen[num] = true
+	}
+	return len(seen) == 9
+}
+
+// GetGameStatus returns the current status of the game
+func (g *GameLogic) GetGameStatus() GameStatus {
+	if !g.IsGridFull() {
+		return InProgress
+	}
+	if g.IsGridValid() {
+		return Completed
+	}
+	return Invalid
 }
