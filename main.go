@@ -16,10 +16,14 @@ import (
 )
 
 const (
-	screenWidth  = 450 // Width of the screen
-	screenHeight = 450 // Height of the screen
-	gridSize     = 9   // Size of the grid
-	cellSize     = 50  // Size of each cell
+	screenWidth     = 450 // Width of the screen
+	screenHeight    = 600 // Height of the screen
+	gridSize        = 9   // Size of the grid
+	cellSize        = 50  // Size of each cell
+	gridTop         = 50
+	statusTop       = 500
+	helpBarHeight   = 30
+	statusBarHeight = 40
 )
 
 const (
@@ -50,6 +54,21 @@ type StatusMessage struct {
 	timer     int
 	isVisible bool
 }
+
+const (
+	//Message duration 	in frames
+	shortMessageDuration  = 60
+	normalMessageDuration = 120
+	longMessageDuration   = 180
+)
+
+var (
+	// Colors
+	errorMessage   = color.RGBA{255, 0, 0, 255}   // Red
+	warningMessage = color.RGBA{255, 165, 0, 255} // Orange
+	infoMessage    = color.RGBA{0, 128, 255, 255} // Blue
+	successMessage = color.RGBA{0, 255, 0, 255}   // Green
+)
 
 // Game struct
 type Game struct {
@@ -91,11 +110,11 @@ func NewGame() *Game {
 	return game
 }
 
-func (g *Game) showStatus(text string, color color.RGBA) {
+func (g *Game) showStatus(text string, msgColor color.RGBA, duration int) {
 	g.statusMessage = StatusMessage{
 		text:      text,
-		color:     color,
-		timer:     120,
+		color:     msgColor,
+		timer:     duration,
 		isVisible: true,
 	}
 }
@@ -229,6 +248,9 @@ func (g *Game) handlePlayingInput() {
 		for i := ebiten.Key0; i <= ebiten.Key9; i++ {
 			if inpututil.IsKeyJustPressed(i) {
 				num := int(i - ebiten.Key0)
+				if num == 0 {
+					continue // Skip 0 as it's not a valid input
+				}
 				if g.isNumValid(g.cursorY, g.cursorX, num) {
 					g.logic.Puzzle[g.cursorY][g.cursorX] = num
 					g.logic.MoveStack = append(g.logic.MoveStack, logic.Action{
@@ -237,17 +259,27 @@ func (g *Game) handlePlayingInput() {
 						OldValue: 0,
 						NewValue: num,
 					})
-				} else {
-					// Number is invalid
-					fmt.Println("Invalid number")
-				}
-				// Check game status after each move
-				if g.logic.IsGridFull() {
-					if g.logic.IsGridValid() {
-						g.showWinMessage = true
-						g.messageTimer = 180
+
+					// Check win condition
+					if g.logic.IsGridFull() {
+						if g.logic.IsGridValid() {
+							g.showWinMessage = true
+							g.messageTimer = longMessageDuration
+							g.showStatus("Puzzle Completed!", successMessage, longMessageDuration)
+						}
 					}
+				} else {
+					// Show error message for invalid number
+					g.showStatus(fmt.Sprintf("Invalid number: %d cannot be placed here", num),
+						errorMessage, normalMessageDuration)
 				}
+			}
+		}
+	} else {
+		// Handle trying to modify fixed numbers
+		for i := ebiten.Key0; i <= ebiten.Key9; i++ {
+			if inpututil.IsKeyJustPressed(i) {
+				g.showStatus("Cannot modify fixed numbers", warningMessage, shortMessageDuration)
 			}
 		}
 	}
@@ -303,17 +335,20 @@ func (g *Game) CheckProgress() {
 	if invalidCount > 0 {
 		g.showStatus(
 			fmt.Sprintf("Found %d incorrect numbers", invalidCount),
-			color.RGBA{255, 0, 0, 255}, // Red
+			errorMessage, // Red
+			longMessageDuration,
 		)
 	} else if emptyCount > 0 {
 		g.showStatus(
 			fmt.Sprintf("%d cells left to fill", emptyCount),
-			color.RGBA{0, 128, 255, 255}, // Blue
+			infoMessage, // Blue
+			shortMessageDuration,
 		)
 	} else if g.logic.IsGridValid() {
 		g.showStatus(
 			"Puzzle completed correctly!",
-			color.RGBA{0, 255, 0, 255}, // Green
+			successMessage, // Green
+			longMessageDuration,
 		)
 		g.showWinMessage = true
 		g.messageTimer = 180
@@ -401,6 +436,8 @@ func main() {
 	// Run the game (this will open a window and start rendering)
 	ebiten.SetWindowSize(screenWidth, screenHeight)
 	ebiten.SetWindowTitle("Sudoku BY Ash!")
+
+	//ebiten.SetWindowResizable(true)
 
 	if err := ebiten.RunGame(game); err != nil {
 		if err == ebiten.Termination {

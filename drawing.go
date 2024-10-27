@@ -10,23 +10,29 @@ import (
 )
 
 type DrawHandler struct {
-	game         *Game
-	fontSource   *text.GoTextFaceSource
-	screenWidth  int
-	screenHeight int
-	gridSize     int
-	cellSize     int
+	game            *Game
+	fontSource      *text.GoTextFaceSource
+	screenWidth     int
+	screenHeight    int
+	gridSize        int
+	cellSize        int
+	gridTop         int
+	statusTop       int
+	statusBarHeight int
 }
 
 // NewDrawHandler creates a new DrawHandler instance
 func NewDrawHandler(game *Game, fontSource *text.GoTextFaceSource) *DrawHandler {
 	return &DrawHandler{
-		game:         game,
-		fontSource:   fontSource,
-		screenWidth:  screenWidth,
-		screenHeight: screenHeight,
-		gridSize:     gridSize,
-		cellSize:     cellSize,
+		game:            game,
+		fontSource:      fontSource,
+		screenWidth:     screenWidth,
+		screenHeight:    screenHeight,
+		gridSize:        gridSize,
+		cellSize:        cellSize,
+		gridTop:         gridTop,
+		statusTop:       statusTop,
+		statusBarHeight: statusBarHeight,
 	}
 }
 
@@ -42,6 +48,18 @@ func (d *DrawHandler) Draw(screen *ebiten.Image) {
 		d.drawDifficultyMenu(screen)
 	case Playing:
 		if d.game.logic != nil {
+			// Add a title at the top
+			titleOp := &text.DrawOptions{}
+			titleOp.GeoM.Translate(float64(d.screenWidth/2), float64(25))
+			titleOp.ColorScale.ScaleWithColor(color.Black)
+			titleOp.PrimaryAlign = text.AlignCenter
+			titleOp.SecondaryAlign = text.AlignCenter
+
+			text.Draw(screen, "Sudoku", &text.GoTextFace{
+				Source: d.fontSource,
+				Size:   menuFontSize,
+			}, titleOp)
+
 			d.DrawGrid(screen)
 			d.DrawNumbers(screen)
 			d.drawStatusBar(screen)
@@ -52,12 +70,10 @@ func (d *DrawHandler) Draw(screen *ebiten.Image) {
 
 // DrawGrid draws the 9x9 grid.
 func (d *DrawHandler) DrawGrid(screen *ebiten.Image) {
-	// Line color (black)
-
 	lineColor := color.RGBA{0, 0, 0, 255} // Black
 
 	// Draw the lines of the grid
-	for i := 0; i <= gridSize; i++ {
+	for i := 0; i <= d.gridSize; i++ {
 		thickness := float32(1.0)
 
 		// Thicker lines for the 3x3 subgrids
@@ -66,18 +82,45 @@ func (d *DrawHandler) DrawGrid(screen *ebiten.Image) {
 		}
 
 		// Vertical lines
-		x := float32(i * cellSize)
-		vector.StrokeLine(screen, x, 0, x, float32(screenHeight), thickness, lineColor, false)
+		x := float32(i * d.cellSize)
+		vector.StrokeLine(
+			screen,
+			x,
+			float32(d.gridTop),
+			x,
+			float32(d.gridTop+(d.gridSize*d.cellSize)), // Fix grid height calculation
+			thickness,
+			lineColor,
+			false,
+		)
 
 		// Horizontal lines
-		y := float32(i * cellSize)
-		vector.StrokeLine(screen, 0, y, float32(screenWidth), y, thickness, lineColor, false)
+		y := float32(d.gridTop + i*d.cellSize)
+		vector.StrokeLine(
+			screen,
+			0,
+			y,
+			float32(d.gridSize*d.cellSize), // Fix grid width calculation
+			y,
+			thickness,
+			lineColor,
+			false,
+		)
 	}
 
-	//Highlight the active cell
-	x := float32(d.game.cursorX * cellSize)
-	y := float32(d.game.cursorY * cellSize)
-	vector.StrokeRect(screen, x, y, float32(cellSize), float32(cellSize), float32(2), color.RGBA{255, 0, 0, 255}, false)
+	// Highlight the active cell
+	x := float32(d.game.cursorX * d.cellSize)
+	y := float32(d.gridTop + d.game.cursorY*d.cellSize)
+	vector.StrokeRect(
+		screen,
+		x,
+		y,
+		float32(d.cellSize),
+		float32(d.cellSize),
+		float32(2),
+		color.RGBA{255, 0, 0, 255},
+		false,
+	)
 }
 
 // DrawNumbers draws the numbers on the grid
@@ -92,7 +135,7 @@ func (d *DrawHandler) DrawNumbers(screen *ebiten.Image) {
 
 				//Center the number in the cell
 				x := col*d.cellSize + d.cellSize/2
-				y := row*d.cellSize + d.cellSize/2
+				y := d.gridTop + row*d.cellSize + d.cellSize/2
 
 				op := &text.DrawOptions{}
 				op.GeoM.Translate(float64(x), float64(y))
@@ -290,12 +333,23 @@ func (d *DrawHandler) drawStatusBar(screen *ebiten.Image) {
 	if d.game.state != Playing {
 		return
 	}
+	// Draw status area background
+	vector.DrawFilledRect(
+		screen,
+		0,
+		float32(d.statusTop),
+		float32(d.screenWidth),
+		float32(d.screenHeight-d.statusTop),
+		color.RGBA{240, 240, 240, 255}, // Light gray background
+		false,
+	)
 
-	// Draw help text for progress check
-	helpText := "Press P to check progress"
+	// Draw help text
+	helpText := "P: Check Progress | Z/Backspace: Undo | ESC: Menu"
 	helpOp := &text.DrawOptions{}
-	helpOp.GeoM.Translate(float64(10), float64(d.screenHeight-20))
+	helpOp.GeoM.Translate(float64(d.screenWidth/3), float64(d.screenHeight-20))
 	helpOp.ColorScale.ScaleWithColor(color.RGBA{100, 100, 100, 255})
+	helpOp.SecondaryAlign = text.AlignEnd
 
 	text.Draw(screen, helpText, &text.GoTextFace{
 		Source: d.fontSource,
@@ -306,20 +360,23 @@ func (d *DrawHandler) drawStatusBar(screen *ebiten.Image) {
 	if d.game.statusMessage.isVisible {
 		msg := d.game.statusMessage
 
-		// Draw background for status message
+		// Draw status message background
 		vector.DrawFilledRect(
 			screen,
 			0,
-			float32(d.screenHeight-50),
+			float32(d.statusTop),
 			float32(d.screenWidth),
-			40,
+			float32(d.statusBarHeight),
 			color.RGBA{0, 0, 0, 180},
 			false,
 		)
 
-		// Draw status message
+		// Draw message text
 		op := &text.DrawOptions{}
-		op.GeoM.Translate(float64(d.screenWidth/2), float64(d.screenHeight-30))
+		op.GeoM.Translate(
+			float64(d.screenWidth/2),
+			float64(d.statusTop+d.statusBarHeight/2),
+		)
 		op.ColorScale.ScaleWithColor(msg.color)
 		op.PrimaryAlign = text.AlignCenter
 		op.SecondaryAlign = text.AlignCenter
