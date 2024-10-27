@@ -7,7 +7,6 @@ import (
 
 	"github.com/afroash/mygame/logic"
 
-	"github.com/afroash/ashlog"
 	"github.com/hajimehoshi/ebiten/examples/resources/fonts"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
@@ -22,20 +21,27 @@ const (
 	cellSize     = 50  // Size of each cell
 )
 
-const normalFontSize = 12
+const (
+	normalFontSize = 12
+	menuFontSize   = 24
+	diffFontSize   = 18
+)
 
-// // Sample grid data, 0 means empty cell
-// var sampleGrid = [9][9]int{
-// 	{5, 3, 0, 0, 7, 0, 0, 0, 0},
-// 	{6, 0, 0, 1, 9, 5, 0, 0, 0},
-// 	{0, 9, 8, 0, 0, 0, 0, 6, 0},
-// 	{8, 0, 0, 0, 6, 0, 0, 0, 3},
-// 	{4, 0, 0, 8, 0, 3, 0, 0, 1},
-// 	{7, 0, 0, 0, 2, 0, 0, 0, 6},
-// 	{0, 6, 0, 0, 0, 0, 2, 8, 0},
-// 	{0, 0, 0, 4, 1, 9, 0, 0, 5},
-// 	{0, 0, 0, 0, 8, 0, 0, 7, 9},
-// }
+type GameState int
+
+const (
+	MainMenu GameState = iota
+	DifficultyMenu
+	Playing
+)
+
+type DifficultyLevel int
+
+const (
+	Easy DifficultyLevel = iota
+	Medium
+	Hard
+)
 
 var (
 	mplusFaceSource *text.GoTextFaceSource
@@ -50,66 +56,137 @@ func init() {
 }
 
 type Game struct {
-	cursorX int // X position of the game box
-	cursorY int // Y position of the game box
-	Puzzle  *logic.GameLogic
-	logic   *logic.GameLogic
+	cursorX    int // X position of the game box
+	cursorY    int // Y position of the game box
+	Puzzle     *logic.GameLogic
+	logic      *logic.GameLogic
+	state      GameState
+	difficulty DifficultyLevel
+	selected   int
 }
 
 func (g *Game) Update() error {
-	// Move the cursor based on the arrow keys or WASD keys
-	if inpututil.IsKeyJustPressed(ebiten.KeyUp) || inpututil.IsKeyJustPressed(ebiten.KeyW) {
-		if g.cursorY > 0 {
-			g.cursorY--
+
+	switch g.state {
+	case MainMenu:
+		if ebiten.IsKeyPressed(ebiten.KeyArrowDown) {
+			g.selected = (g.selected + 1) % 3 //Allows to cylce through the menu options 3 times.
+		} else if ebiten.IsKeyPressed(ebiten.KeyArrowUp) {
+			g.selected = (g.selected + 2) % 3 //Allows to cylce through the menu options 3 times.
+		} else if ebiten.IsKeyPressed(ebiten.KeyEnter) {
+			switch g.selected {
+			case 0: // Starts a new game
+				g.startGame()
+			case 1: // Shows the difficulty menu
+				g.state = DifficultyMenu
+				g.selected = 0
+			case 2: // Exits the game
+				ebiten.Termination.Error()
+
+			}
 		}
-	}
-	if inpututil.IsKeyJustPressed(ebiten.KeyDown) || inpututil.IsKeyJustPressed(ebiten.KeyS) {
-		if g.cursorY < gridSize-1 {
-			g.cursorY++
+	case DifficultyMenu:
+		if ebiten.IsKeyPressed(ebiten.KeyArrowDown) {
+			g.selected = (g.selected + 1) % 3 //Allows to cylce through the menu options 3 times.
+		} else if ebiten.IsKeyPressed(ebiten.KeyArrowUp) {
+			g.selected = (g.selected + 2) % 3 //Allows to cylce through the menu options 3 times.
+		} else if ebiten.IsKeyPressed(ebiten.KeyEnter) {
+			switch g.selected {
+			case 0: // Easy difficulty
+				g.difficulty = Easy
+				g.state = Playing
+			case 1: // Medium difficulty
+				g.difficulty = Medium
+				g.state = Playing
+			case 2: // Hard difficulty
+				g.difficulty = Hard
+				g.state = Playing
+			}
 		}
-	}
-	if inpututil.IsKeyJustPressed(ebiten.KeyLeft) || inpututil.IsKeyJustPressed(ebiten.KeyA) {
-		if g.cursorX > 0 {
-			g.cursorX--
+	case Playing:
+		// Move the cursor based on the arrow keys or WASD keys
+		if inpututil.IsKeyJustPressed(ebiten.KeyUp) || inpututil.IsKeyJustPressed(ebiten.KeyW) {
+			if g.cursorY > 0 {
+				g.cursorY--
+			}
 		}
 
-	}
-	if inpututil.IsKeyJustPressed(ebiten.KeyRight) || inpututil.IsKeyJustPressed(ebiten.KeyD) {
-		if g.cursorX < gridSize-1 {
-			g.cursorX++
+		if inpututil.IsKeyJustPressed(ebiten.KeyDown) || inpututil.IsKeyJustPressed(ebiten.KeyS) {
+			if g.cursorY < gridSize-1 {
+				g.cursorY++
+			}
 		}
-
-	}
-
-	// handle number input for empty cells
-	if g.logic.Puzzle[g.cursorY][g.cursorX] == 0 {
-		for i := ebiten.Key0; i <= ebiten.Key9; i++ {
-			if inpututil.IsKeyJustPressed(i) {
-				num := int(i - ebiten.Key0)
-				//validate the number
-				if g.isNumValid(g.cursorY, g.cursorX, num) {
-					g.logic.Puzzle[g.cursorY][g.cursorX] = num
-					g.logic.MoveStack = append(g.logic.MoveStack, logic.Action{
-						Row:      g.cursorY,
-						Col:      g.cursorX,
-						OldValue: 0,
-						NewValue: num,
-					})
-
-				} else {
-					log.Println("Invalid number try again")
-				}
-
+		if inpututil.IsKeyJustPressed(ebiten.KeyLeft) || inpututil.IsKeyJustPressed(ebiten.KeyA) {
+			if g.cursorX > 0 {
+				g.cursorX--
 			}
 
 		}
-	}
-	//handle undo input via z or backspace
-	if inpututil.IsKeyJustPressed(ebiten.KeyZ) || inpututil.IsKeyJustPressed(ebiten.KeyBackspace) {
-		g.logic.UndoMove()
+		if inpututil.IsKeyJustPressed(ebiten.KeyRight) || inpututil.IsKeyJustPressed(ebiten.KeyD) {
+			if g.cursorX < gridSize-1 {
+				g.cursorX++
+			}
+
+		}
+
+		// handle number input for empty cells
+		if g.logic.Puzzle[g.cursorY][g.cursorX] == 0 {
+			for i := ebiten.Key0; i <= ebiten.Key9; i++ {
+				if inpututil.IsKeyJustPressed(i) {
+					num := int(i - ebiten.Key0)
+					//validate the number
+					if g.isNumValid(g.cursorY, g.cursorX, num) {
+						g.logic.Puzzle[g.cursorY][g.cursorX] = num
+						g.logic.MoveStack = append(g.logic.MoveStack, logic.Action{
+							Row:      g.cursorY,
+							Col:      g.cursorX,
+							OldValue: 0,
+							NewValue: num,
+						})
+
+					} else {
+						log.Println("Invalid number try again")
+					}
+
+				}
+
+			}
+		}
+		//handle undo input via z or backspace
+		if inpututil.IsKeyJustPressed(ebiten.KeyZ) || inpututil.IsKeyJustPressed(ebiten.KeyBackspace) {
+			g.logic.UndoMove()
+		}
 	}
 
 	return nil
+}
+
+// startGame will start a new game
+func (g *Game) startGame() {
+	// Load the puzzles from the file
+	puzzles, err := logic.LoadPuzzles("sample.txt")
+	if err != nil {
+		log.Fatalf("Error loading puzzles: %v", err)
+	}
+
+	randomPuzzle := logic.GetRandomPuzzle(puzzles)
+	logic.ShuffleAsh(&randomPuzzle)
+	// Remove numbers from the puzzle based on the difficulty level
+	switch g.difficulty {
+	case Easy:
+		logic.RemoveNumbersFromGrid(&randomPuzzle, 1)
+	case Medium:
+		logic.RemoveNumbersFromGrid(&randomPuzzle, 3)
+	case Hard:
+		logic.RemoveNumbersFromGrid(&randomPuzzle, 5)
+	}
+
+	// Set the puzzle to the game logic
+	g.logic = &logic.GameLogic{
+		Puzzle:    randomPuzzle,
+		MoveStack: []logic.Action{},
+	}
+	g.state = Playing
 }
 
 // Lets check if the entered number is valid as per Sudoku rules.
@@ -201,12 +278,68 @@ func (g *Game) DrawNumbers(screen *ebiten.Image) {
 	}
 }
 
+// drawMainMenu will draw the main menu
+func (g *Game) drawMainMenu(screen *ebiten.Image) {
+	screen.Fill(color.RGBA{255, 255, 255, 255}) // White background
+	options := []string{"New Game", "Difficulty", "Exit"}
+	startX := 100
+	startY := 150
+	lineSpacing := 30
+
+	for i, option := range options {
+
+		if i == g.selected {
+			vector.DrawFilledRect(screen, float32(startX-10), float32(startY+i*lineSpacing-10), float32(200), float32(30), color.RGBA{0, 0, 255, 255}, false)
+
+		}
+		op := &text.DrawOptions{}
+		op.GeoM.Translate(float64(startX), float64(startY+(i*lineSpacing)))
+		//op.LineSpacing = float64(menuFontSize * 20)
+
+		op.ColorScale.ScaleWithColor(color.Black)
+
+		text.Draw(screen, option, &text.GoTextFace{
+			Source: mplusFaceSource,
+			Size:   menuFontSize,
+		}, op)
+	}
+}
+
+// drawDifficultyMenu will draw the difficulty menu
+func (g *Game) drawDifficultyMenu(screen *ebiten.Image) {
+	startX := 100
+	startY := 150
+	lineSpacing := 10
+	screen.Fill(color.RGBA{255, 255, 255, 255}) // White background
+	diffs := []string{"Easy", "medium", "Hard"}
+	for i, diff := range diffs {
+		if i == g.selected {
+			vector.DrawFilledRect(screen, float32(startX-10), float32(startY+i*lineSpacing-10), float32(200), float32(30), color.RGBA{0, 0, 255, 255}, false)
+		}
+		op := &text.DrawOptions{}
+		op.GeoM.Translate(float64(startX), float64(startY+(i*lineSpacing)))
+		op.ColorScale.ScaleWithColor(color.Black)
+		text.Draw(screen, diff, &text.GoTextFace{
+			Source: mplusFaceSource,
+			Size:   diffFontSize,
+		}, op)
+	}
+}
+
 // Draw will draw a 9x9 grid.
 func (g *Game) Draw(screen *ebiten.Image) {
+
 	// Fill the screen with white background
 	screen.Fill(color.RGBA{255, 255, 255, 255})
-	g.DrawGrid(screen)
-	g.DrawNumbers(screen)
+	switch g.state {
+	case MainMenu:
+		g.drawMainMenu(screen)
+	case DifficultyMenu:
+		g.drawDifficultyMenu(screen)
+	case Playing:
+		g.DrawGrid(screen)
+		g.DrawNumbers(screen)
+	}
 }
 
 // Layout sets the logical screen dimensions.
@@ -216,31 +349,13 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 }
 
 func main() {
-	//Load puzzle from samples.
-	puzzles, err := logic.LoadPuzzles("sample.txt")
-	if err != nil {
-		ashlog.LogFatal("Error loading puzzles", err)
-	}
 
-	//Select a random puzzle
-	randomPuzzle := logic.GetRandomPuzzle(puzzles)
-
-	//shuffle the puzzle
-	//logic.ShuffleAsh(&randomPuzzle)
-
-	//remove some numbers from the puzzle
-	logic.RemoveNumbersFromGrid(&randomPuzzle, 3)
-
-	gamelogic := &logic.GameLogic{
-		Puzzle:    randomPuzzle,
-		MoveStack: []logic.Action{},
-	}
 	// Create a new game instance
 	game := &Game{
 		//Puzzle:  randomPuzzle,
 		cursorX: gridSize / 2,
 		cursorY: gridSize / 2,
-		logic:   gamelogic,
+		state:   MainMenu, // Start with the main menu
 	}
 
 	// Run the game (this will open a window and start rendering)
