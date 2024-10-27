@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"log"
+	"os"
 
 	"github.com/afroash/mygame/logic"
 
@@ -52,6 +53,7 @@ type Game struct {
 	difficulty DifficultyLevel
 	selected   int
 	drawer     *DrawHandler
+	shoudlExit bool
 }
 
 func NewGame() *Game {
@@ -62,9 +64,10 @@ func NewGame() *Game {
 	}
 
 	game := &Game{
-		cursorX: gridSize / 2,
-		cursorY: gridSize / 2,
-		state:   MainMenu,
+		cursorX:    gridSize / 2,
+		cursorY:    gridSize / 2,
+		state:      MainMenu,
+		shoudlExit: false,
 	}
 
 	// Initialize the drawer
@@ -74,6 +77,10 @@ func NewGame() *Game {
 }
 
 func (g *Game) Update() error {
+	// check if the game should exit
+	if g.shoudlExit {
+		return ebiten.Termination
+	}
 
 	switch g.state {
 	case MainMenu:
@@ -83,6 +90,23 @@ func (g *Game) Update() error {
 	case Playing:
 		if g.logic != nil {
 			g.handlePlayingInput()
+		}
+	}
+
+	// Global Exit
+	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
+		switch g.state {
+		case Playing:
+			// If in playing state, go back to main menu
+			g.state = MainMenu
+			g.selected = 0
+		case DifficultyMenu:
+			// If in difficulty menu, go back to main menu
+			g.state = MainMenu
+			g.selected = 1
+		case MainMenu:
+			// If in main menu, exit the game
+			g.shoudlExit = true
 		}
 	}
 
@@ -113,7 +137,7 @@ func (g *Game) handleMainMenu() {
 			g.state = DifficultyMenu
 			g.selected = 0
 		case 2: // Exit
-			ebiten.Termination.Error()
+			g.shoudlExit = true // Exit the game
 		}
 	}
 }
@@ -267,7 +291,13 @@ func main() {
 	// Run the game (this will open a window and start rendering)
 	ebiten.SetWindowSize(screenWidth, screenHeight)
 	ebiten.SetWindowTitle("Sudoku BY Ash!")
+
 	if err := ebiten.RunGame(game); err != nil {
+		if err == ebiten.Termination {
+			// Clean Exit
+			os.Exit(0)
+		}
+
 		log.Fatal(err)
 	}
 }
