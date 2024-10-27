@@ -311,7 +311,7 @@ func (g *Game) drawDifficultyMenu(screen *ebiten.Image) {
 	startY := 150
 	lineSpacing := 10
 	screen.Fill(color.RGBA{255, 255, 255, 255}) // White background
-	diffs := []string{"Easy", "medium", "Hard"}
+	diffs := []string{"Easy", "medium", "Harder"}
 	for i, diff := range diffs {
 		if i == g.selected {
 			vector.DrawFilledRect(screen, float32(startX-10), float32(startY+i*lineSpacing-10), float32(200), float32(30), color.RGBA{0, 0, 255, 255}, false)
