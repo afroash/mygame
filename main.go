@@ -446,6 +446,10 @@ func (g *Game) startGame() {
 		}
 	}
 
+	// Reset win message state when starting a new game
+	g.showWinMessage = false
+	g.messageTimer = 0
+
 	g.state = Playing
 }
 

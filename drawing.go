@@ -219,6 +219,11 @@ func (d *DrawHandler) DrawNumbers(screen *ebiten.Image) {
 					Source: d.fontSource,
 					Size:   normalFontSize,
 				}, op)
+				
+				// Draw pencil marks for filled cells when in help mode
+				if d.game.specialEnterMode && len(d.game.pencilMarks[row][col]) > 0 {
+					d.DrawPencilMarks(screen, row, col, d.game.pencilMarks[row][col])
+				}
 			} else {
 				// Draw pencil marks for empty cells when in help mode
 				if d.game.specialEnterMode && len(d.game.pencilMarks[row][col]) > 0 {
