@@ -3,7 +3,6 @@ module github.com/afroash/mygame
 go 1.22.4
 
 require (
-	github.com/afroash/ashlog v1.0.2
 	github.com/hajimehoshi/ebiten v1.12.12
 	github.com/hajimehoshi/ebiten/v2 v2.8.1
 )

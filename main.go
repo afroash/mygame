@@ -72,18 +72,20 @@ var (
 
 // Game struct
 type Game struct {
-	cursorX        int // X position of the game box
-	cursorY        int // Y position of the game box
-	Puzzle         *logic.GameLogic
-	logic          *logic.GameLogic
-	state          GameState
-	difficulty     DifficultyLevel
-	selected       int
-	drawer         *DrawHandler
-	shoudlExit     bool
-	showWinMessage bool
-	messageTimer   int
-	statusMessage  StatusMessage
+	cursorX          int // X position of the game box
+	cursorY          int // Y position of the game box
+	Puzzle           *logic.GameLogic
+	logic            *logic.GameLogic
+	state            GameState
+	difficulty       DifficultyLevel
+	selected         int
+	drawer           *DrawHandler
+	shoudlExit       bool
+	showWinMessage   bool
+	messageTimer     int
+	statusMessage    StatusMessage
+	specialEnterMode bool
+	pencilMarks      [9][9]map[int]bool // Pencil marks for each cell (possible numbers)
 }
 
 func NewGame() *Game {
@@ -102,6 +104,13 @@ func NewGame() *Game {
 			timer:     0,
 			isVisible: false,
 		},
+	}
+
+	// Initialize pencil marks maps
+	for i := 0; i < 9; i++ {
+		for j := 0; j < 9; j++ {
+			game.pencilMarks[i][j] = make(map[int]bool)
+		}
 	}
 
 	// Initialize the drawer
@@ -251,27 +260,48 @@ func (g *Game) handlePlayingInput() {
 				if num == 0 {
 					continue // Skip 0 as it's not a valid input
 				}
-				if g.isNumValid(g.cursorY, g.cursorX, num) {
-					g.logic.Puzzle[g.cursorY][g.cursorX] = num
-					g.logic.MoveStack = append(g.logic.MoveStack, logic.Action{
-						Row:      g.cursorY,
-						Col:      g.cursorX,
-						OldValue: 0,
-						NewValue: num,
-					})
 
-					// Check win condition
-					if g.logic.IsGridFull() {
-						if g.logic.IsGridValid() {
-							g.showWinMessage = true
-							g.messageTimer = longMessageDuration
-							g.showStatus("Puzzle Completed!", successMessage, longMessageDuration)
+				// Handle help mode (pencil marks)
+				if g.specialEnterMode {
+					// Toggle pencil mark
+					if g.pencilMarks[g.cursorY][g.cursorX][num] {
+						// Remove pencil mark
+						delete(g.pencilMarks[g.cursorY][g.cursorX], num)
+					} else {
+						// Add pencil mark if we have less than 4
+						if len(g.pencilMarks[g.cursorY][g.cursorX]) < 4 {
+							g.pencilMarks[g.cursorY][g.cursorX][num] = true
+						} else {
+							g.showStatus("Maximum 4 pencil marks per cell", warningMessage, shortMessageDuration)
 						}
 					}
 				} else {
-					// Show error message for invalid number
-					g.showStatus(fmt.Sprintf("Invalid number: %d cannot be placed here", num),
-						errorMessage, normalMessageDuration)
+					// Normal mode - enter final number
+					if g.isNumValid(g.cursorY, g.cursorX, num) {
+						// Clear pencil marks when entering final number
+						g.pencilMarks[g.cursorY][g.cursorX] = make(map[int]bool)
+
+						g.logic.Puzzle[g.cursorY][g.cursorX] = num
+						g.logic.MoveStack = append(g.logic.MoveStack, logic.Action{
+							Row:      g.cursorY,
+							Col:      g.cursorX,
+							OldValue: 0,
+							NewValue: num,
+						})
+
+						// Check win condition
+						if g.logic.IsGridFull() {
+							if g.logic.IsGridValid() {
+								g.showWinMessage = true
+								g.messageTimer = longMessageDuration
+								g.showStatus("Puzzle Completed!", successMessage, longMessageDuration)
+							}
+						}
+					} else {
+						// Show error message for invalid number
+						g.showStatus(fmt.Sprintf("Invalid number: %d cannot be placed here", num),
+							errorMessage, normalMessageDuration)
+					}
 				}
 			}
 		}
@@ -279,7 +309,25 @@ func (g *Game) handlePlayingInput() {
 		// Handle trying to modify fixed numbers
 		for i := ebiten.Key0; i <= ebiten.Key9; i++ {
 			if inpututil.IsKeyJustPressed(i) {
-				g.showStatus("Cannot modify fixed numbers", warningMessage, shortMessageDuration)
+				if g.specialEnterMode {
+					// In help mode, allow pencil marks even on filled cells (for reference)
+					num := int(i - ebiten.Key0)
+					if num == 0 {
+						continue
+					}
+					// Toggle pencil mark
+					if g.pencilMarks[g.cursorY][g.cursorX][num] {
+						delete(g.pencilMarks[g.cursorY][g.cursorX], num)
+					} else {
+						if len(g.pencilMarks[g.cursorY][g.cursorX]) < 4 {
+							g.pencilMarks[g.cursorY][g.cursorX][num] = true
+						} else {
+							g.showStatus("Maximum 4 pencil marks per cell", warningMessage, shortMessageDuration)
+						}
+					}
+				} else {
+					g.showStatus("Cannot modify fixed numbers", warningMessage, shortMessageDuration)
+				}
 			}
 		}
 	}
@@ -287,6 +335,16 @@ func (g *Game) handlePlayingInput() {
 	// Handle undo
 	if inpututil.IsKeyJustPressed(ebiten.KeyZ) || inpututil.IsKeyJustPressed(ebiten.KeyBackspace) {
 		g.logic.UndoMove()
+	}
+
+	// Enable Special Enter mode to enter a temp number in one of the current cell corners.
+	if inpututil.IsKeyJustPressed(ebiten.KeyH) {
+		g.specialEnterMode = true
+	}
+
+	// Disable Special Enter mode
+	if inpututil.IsKeyJustPressed(ebiten.KeyN) {
+		g.specialEnterMode = false
 	}
 
 	// Handle win message timer
@@ -380,6 +438,14 @@ func (g *Game) startGame() {
 		Puzzle:    randomPuzzle,
 		MoveStack: []logic.Action{},
 	}
+
+	// Clear all pencil marks when starting a new game
+	for i := 0; i < 9; i++ {
+		for j := 0; j < 9; j++ {
+			g.pencilMarks[i][j] = make(map[int]bool)
+		}
+	}
+
 	g.state = Playing
 }
 

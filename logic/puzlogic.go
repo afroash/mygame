@@ -8,14 +8,19 @@ import (
 	"strings"
 )
 
+// Action represents a move in the game
 type Action struct {
 	Row, Col int
 	OldValue int
 	NewValue int
 }
 
+//
+
+// Puzzle represents a Sudoku puzzle
 type Puzzle [9][9]int
 
+// GameLogic represents the game logic
 type GameLogic struct {
 	Puzzle    Puzzle
 	MoveStack []Action
@@ -166,6 +171,8 @@ func (g *GameLogic) UndoMove() {
 	g.MoveStack = g.MoveStack[:len(g.MoveStack)-1]
 	g.Puzzle[lastMove.Row][lastMove.Col] = lastMove.OldValue
 }
+
+//Special Undo Specific cell.
 
 // IsGridFull checks if the grid is full
 func (g *GameLogic) IsGridFull() bool {

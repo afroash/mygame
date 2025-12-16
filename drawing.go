@@ -111,6 +111,13 @@ func (d *DrawHandler) DrawGrid(screen *ebiten.Image) {
 	// Highlight the active cell
 	x := float32(d.game.cursorX * d.cellSize)
 	y := float32(d.gridTop + d.game.cursorY*d.cellSize)
+	highlightColor := color.RGBA{255, 0, 0, 255}
+	if d.game.specialEnterMode {
+		highlightColor = color.RGBA{0, 255, 0, 255}
+	}
+	if !d.game.specialEnterMode {
+		highlightColor = color.RGBA{255, 0, 0, 255}
+	}
 	vector.StrokeRect(
 		screen,
 		x,
@@ -118,9 +125,73 @@ func (d *DrawHandler) DrawGrid(screen *ebiten.Image) {
 		float32(d.cellSize),
 		float32(d.cellSize),
 		float32(2),
-		color.RGBA{255, 0, 0, 255},
+		highlightColor,
 		false,
 	)
+}
+
+// DrawPencilMarks draws pencil marks in the corners of a cell
+func (d *DrawHandler) DrawPencilMarks(screen *ebiten.Image, row, col int, marks map[int]bool) {
+	if len(marks) == 0 {
+		return
+	}
+
+	// Convert map to sorted slice for consistent corner assignment
+	// Iterate 1-9 to get sorted order
+	var sortedMarks []int
+	for num := 1; num <= 9; num++ {
+		if marks[num] {
+			sortedMarks = append(sortedMarks, num)
+		}
+	}
+
+	// Limit to 4 marks (one per corner)
+	if len(sortedMarks) > 4 {
+		sortedMarks = sortedMarks[:4]
+	}
+
+	// Corner positions with padding
+	padding := 7
+	cellX := col * d.cellSize
+	cellY := d.gridTop + row*d.cellSize
+
+	// Define corner positions and alignments
+	type cornerInfo struct {
+		x, y           int
+		primaryAlign   text.Align
+		secondaryAlign text.Align
+	}
+
+	corners := []cornerInfo{
+		{cellX + padding, cellY + padding, text.AlignStart, text.AlignStart},                       // Top-left
+		{cellX + d.cellSize - padding, cellY + padding, text.AlignEnd, text.AlignStart},            // Top-right
+		{cellX + padding, cellY + d.cellSize - padding, text.AlignStart, text.AlignEnd},            // Bottom-left
+		{cellX + d.cellSize - padding, cellY + d.cellSize - padding, text.AlignEnd, text.AlignEnd}, // Bottom-right
+	}
+
+	// Draw each mark in its corner
+	pencilFontSize := float64(normalFontSize - 4)
+	pencilColor := color.RGBA{150, 150, 150, 255} // Gray color for pencil marks
+
+	for i, num := range sortedMarks {
+		if i >= len(corners) {
+			break
+		}
+
+		corner := corners[i]
+		numStr := string(rune(num + '0'))
+
+		op := &text.DrawOptions{}
+		op.GeoM.Translate(float64(corner.x), float64(corner.y))
+		op.ColorScale.ScaleWithColor(pencilColor)
+		op.PrimaryAlign = corner.primaryAlign
+		op.SecondaryAlign = corner.secondaryAlign
+
+		text.Draw(screen, numStr, &text.GoTextFace{
+			Source: d.fontSource,
+			Size:   pencilFontSize,
+		}, op)
+	}
 }
 
 // DrawNumbers draws the numbers on the grid
@@ -148,6 +219,11 @@ func (d *DrawHandler) DrawNumbers(screen *ebiten.Image) {
 					Source: d.fontSource,
 					Size:   normalFontSize,
 				}, op)
+			} else {
+				// Draw pencil marks for empty cells when in help mode
+				if d.game.specialEnterMode && len(d.game.pencilMarks[row][col]) > 0 {
+					d.DrawPencilMarks(screen, row, col, d.game.pencilMarks[row][col])
+				}
 			}
 		}
 	}
@@ -344,11 +420,31 @@ func (d *DrawHandler) drawStatusBar(screen *ebiten.Image) {
 		false,
 	)
 
+	// Draw help mode status
+	modeText := "Help Mode: OFF"
+	modeColor := color.RGBA{100, 100, 100, 255}
+	if d.game.specialEnterMode {
+		modeText = "Help Mode: ON"
+		modeColor = color.RGBA{0, 150, 0, 255} // Green when active
+	}
+
+	modeOp := &text.DrawOptions{}
+	modeOp.GeoM.Translate(float64(10), float64(d.statusTop+15))
+	modeOp.ColorScale.ScaleWithColor(modeColor)
+	modeOp.PrimaryAlign = text.AlignStart
+	modeOp.SecondaryAlign = text.AlignStart
+
+	text.Draw(screen, modeText, &text.GoTextFace{
+		Source: d.fontSource,
+		Size:   normalFontSize,
+	}, modeOp)
+
 	// Draw help text
-	helpText := "P: Check Progress | Z/Backspace: Undo | ESC: Menu"
+	helpText := "H: Help Mode | N: Normal | P: Check Progress | Z/Backspace: Undo | ESC: Menu"
 	helpOp := &text.DrawOptions{}
-	helpOp.GeoM.Translate(float64(d.screenWidth/3), float64(d.screenHeight-20))
+	helpOp.GeoM.Translate(float64(d.screenWidth/2), float64(d.screenHeight-20))
 	helpOp.ColorScale.ScaleWithColor(color.RGBA{100, 100, 100, 255})
+	helpOp.PrimaryAlign = text.AlignCenter
 	helpOp.SecondaryAlign = text.AlignEnd
 
 	text.Draw(screen, helpText, &text.GoTextFace{
